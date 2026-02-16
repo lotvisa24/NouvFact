@@ -61,65 +61,69 @@
     <div id="root"></div>
 
     <script type="module">
-        const modulesCache = new Map();
+        const blobCache = new Map(); // Stocke URL_ORIGINE -> BLOB_URL
 
         /**
-         * Chargeur récursif : télécharge, compile et lie les fichiers .tsx/.ts
+         * Chargeur de modules intelligent pour GitHub Pages
          */
-        async function loadAndExecute(url) {
-            const absoluteUrl = new URL(url, window.location.href).href;
-            if (modulesCache.has(absoluteUrl)) return modulesCache.get(absoluteUrl);
+        async function loadAndExecute(relativeUrl, baseUrl = window.location.href) {
+            // Résolution de l'URL absolue réelle (ex: https://.../index.tsx)
+            const absoluteOriginalUrl = new URL(relativeUrl, baseUrl).href;
+            
+            if (blobCache.has(absoluteOriginalUrl)) {
+                return blobCache.get(absoluteOriginalUrl);
+            }
 
             try {
-                const response = await fetch(absoluteUrl);
-                if (!response.ok) throw new Error(`Erreur ${response.status} : Impossible de lire ${url}`);
+                const response = await fetch(absoluteOriginalUrl);
+                if (!response.ok) throw new Error(`Fichier introuvable : ${absoluteOriginalUrl}`);
                 let code = await response.text();
 
-                // 1. Analyse des dépendances (regex pour trouver les imports locaux)
+                // 1. Analyse des imports locaux (.tsx, .ts)
                 const importRegex = /import\s+(?:[\w\s{},*]+(?:\s+as\s+[\w]+)?\s+from\s+)?(['"])((\.\/|\.\.\/)[^'"]+\.(tsx?|ts))\1/g;
                 const matches = [...code.matchAll(importRegex)];
 
-                // Chargement en parallèle des dépendances
+                // Chargement récursif en utilisant l'URL d'origine pour résoudre les chemins
                 for (const match of matches) {
-                    const relativePath = match[2];
-                    const fullDependencyUrl = new URL(relativePath, absoluteUrl).href;
-                    const blobUrl = await loadAndExecute(fullDependencyUrl);
-                    // On remplace le chemin relatif par l'URL du Blob généré
-                    code = code.split(match[0]).join(match[0].replace(relativePath, blobUrl));
+                    const foundPath = match[2];
+                    // IMPORTANT : On résout par rapport à absoluteOriginalUrl, pas par rapport à un blob!
+                    const depBlobUrl = await loadAndExecute(foundPath, absoluteOriginalUrl);
+                    // On remplace le chemin par l'URL du blob pour le navigateur
+                    code = code.split(match[0]).join(match[0].replace(foundPath, depBlobUrl));
                 }
 
-                // 2. Transpilation via Babel
+                // 2. Transpilation Babel (TSX -> JS)
                 const transformed = Babel.transform(code, {
                     presets: ['react', ['typescript', { isTSX: true, allExtensions: true }]],
-                    filename: absoluteUrl
+                    filename: absoluteOriginalUrl
                 }).code;
 
-                // 3. Création d'un module JavaScript valide (Blob)
+                // 3. Création du module virtuel
                 const blob = new Blob([transformed], { type: 'application/javascript' });
                 const blobUrl = URL.createObjectURL(blob);
                 
-                modulesCache.set(absoluteUrl, blobUrl);
+                blobCache.set(absoluteOriginalUrl, blobUrl);
                 return blobUrl;
             } catch (err) {
-                console.error(`[Loader] Erreur sur ${url}:`, err);
+                console.error(`[Loader] Erreur sur ${absoluteOriginalUrl}:`, err);
                 const errDiv = document.getElementById('loader-error');
                 errDiv.style.display = 'block';
-                errDiv.innerHTML += `<div style="margin-bottom:8px">❌ <b>${url}</b> : ${err.message}</div>`;
+                errDiv.innerHTML += `<div>❌ <b>${relativeUrl}</b> : ${err.message}</div>`;
                 throw err;
             }
         }
 
-        // Lancement de l'application
-        window.addEventListener('DOMContentLoaded', async () => {
+        // Démarrage de l'application
+        (async () => {
             try {
-                // On démarre par le fichier index.tsx
-                const entryBlobUrl = await loadAndExecute('./index.tsx');
-                // Importation dynamique du module principal
-                await import(entryBlobUrl);
+                // On charge le point d'entrée
+                const entryPointBlob = await loadAndExecute('./index.tsx');
+                // On l'exécute
+                await import(entryPointBlob);
             } catch (e) {
-                console.error("[App] Échec du démarrage critique.");
+                console.error("[App] Échec critique au démarrage.");
             }
-        });
+        })();
     </script>
 </body>
 </html>
