@@ -16,7 +16,7 @@
             body { background-color: white !important; }
         }
         #root:empty::before {
-            content: 'Initialisation du système...';
+            content: 'Chargement des composants...';
             display: flex;
             justify-content: center;
             align-items: center;
@@ -26,9 +26,9 @@
             font-size: 14px;
         }
     </style>
-<!-- Polyfill pour assurer le support des modules et des extensions sur GitHub Pages -->
-<script async src="https://ga.jspm.io/npm:es-module-shims@1.10.0/dist/es-module-shims.js"></script>
-<script type="importmap">
+
+    <!-- Import Map : Une seule version de React (19.0.0) pour éviter les conflits -->
+    <script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@19.0.0",
@@ -42,15 +42,35 @@
   }
 }
 </script>
+
+    <!-- Babel Standalone : Permet de lire le TSX directement dans le navigateur -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body class="bg-gray-50 text-gray-900">
     <div id="root"></div>
-    <!-- L'extension .tsx est indispensable ici -->
-    <script type="module" src="./index.tsx"></script>
+
+    <!-- Script de démarrage via Babel -->
+    <!-- data-type="module" permet d'utiliser les imports ES6 dans le code transpilé -->
+    <script type="text/babel" data-type="module" data-presets="react,typescript">
+        import React from 'react';
+        import { createRoot } from 'react-dom/client';
+        import App from './App.tsx';
+
+        const rootElement = document.getElementById('root');
+        if (rootElement) {
+            const root = createRoot(rootElement);
+            root.render(
+                <React.StrictMode>
+                    <App />
+                </React.StrictMode>
+            );
+        }
+    </script>
+
     <script>
-      // Petit utilitaire pour voir les erreurs si la page reste blanche
+      // Logging des erreurs pour le débogage GitHub Pages
       window.onerror = function(msg, url, line) {
-        console.error("Erreur détectée: " + msg + " sur " + url + ":" + line);
+        console.error("Erreur Application: " + msg + "\nURL: " + url + "\nLigne: " + line);
       };
     </script>
 </body>
