@@ -16,25 +16,27 @@
             body { background-color: white !important; }
         }
         #root:empty::before {
-            content: 'Initialisation du système de facturation...';
+            content: 'Chargement du système de facturation...';
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            color: #059669;
+            color: #10b981;
             font-weight: 600;
             font-size: 14px;
             background: #f9fafb;
         }
         #loader-error {
             display: none;
-            padding: 20px;
-            color: #dc2626;
+            padding: 24px;
+            color: #b91c1c;
             background: #fef2f2;
-            border: 1px solid #fecaca;
+            border: 2px solid #fecaca;
             margin: 20px;
-            border-radius: 12px;
-            font-family: monospace;
+            border-radius: 16px;
+            font-family: system-ui, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
         }
     </style>
 
@@ -52,7 +54,6 @@
   }
 }
 </script>
-
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body class="bg-gray-50 text-gray-900">
@@ -60,47 +61,63 @@
     <div id="root"></div>
 
     <script type="module">
-        /**
-         * CUSTOM LOADER POUR GITHUB PAGES
-         * Ce script contourne l'erreur "application/octet-stream" en chargeant 
-         * les fichiers .tsx comme du texte avant de les donner à Babel.
-         */
-        const showError = (msg) => {
-            const errDiv = document.getElementById('loader-error');
-            errDiv.style.display = 'block';
-            errDiv.innerHTML = `<b>Erreur de chargement :</b><br>${msg}`;
-        };
+        const modulesCache = new Map();
 
+        /**
+         * Chargeur récursif : télécharge, compile et lie les fichiers .tsx/.ts
+         */
         async function loadAndExecute(url) {
+            const absoluteUrl = new URL(url, window.location.href).href;
+            if (modulesCache.has(absoluteUrl)) return modulesCache.get(absoluteUrl);
+
             try {
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`Impossible de lire ${url} (Status: ${response.status})`);
-                const code = await response.text();
-                
-                // Transpilation du TSX en JS compatible navigateur
+                const response = await fetch(absoluteUrl);
+                if (!response.ok) throw new Error(`Erreur ${response.status} : Impossible de lire ${url}`);
+                let code = await response.text();
+
+                // 1. Analyse des dépendances (regex pour trouver les imports locaux)
+                const importRegex = /import\s+(?:[\w\s{},*]+(?:\s+as\s+[\w]+)?\s+from\s+)?(['"])((\.\/|\.\.\/)[^'"]+\.(tsx?|ts))\1/g;
+                const matches = [...code.matchAll(importRegex)];
+
+                // Chargement en parallèle des dépendances
+                for (const match of matches) {
+                    const relativePath = match[2];
+                    const fullDependencyUrl = new URL(relativePath, absoluteUrl).href;
+                    const blobUrl = await loadAndExecute(fullDependencyUrl);
+                    // On remplace le chemin relatif par l'URL du Blob généré
+                    code = code.split(match[0]).join(match[0].replace(relativePath, blobUrl));
+                }
+
+                // 2. Transpilation via Babel
                 const transformed = Babel.transform(code, {
                     presets: ['react', ['typescript', { isTSX: true, allExtensions: true }]],
-                    filename: url
+                    filename: absoluteUrl
                 }).code;
 
-                // Création d'un module virtuel
+                // 3. Création d'un module JavaScript valide (Blob)
                 const blob = new Blob([transformed], { type: 'application/javascript' });
                 const blobUrl = URL.createObjectURL(blob);
-                return await import(blobUrl);
+                
+                modulesCache.set(absoluteUrl, blobUrl);
+                return blobUrl;
             } catch (err) {
-                console.error(`Erreur sur ${url}:`, err);
-                showError(err.message);
+                console.error(`[Loader] Erreur sur ${url}:`, err);
+                const errDiv = document.getElementById('loader-error');
+                errDiv.style.display = 'block';
+                errDiv.innerHTML += `<div style="margin-bottom:8px">❌ <b>${url}</b> : ${err.message}</div>`;
                 throw err;
             }
         }
 
-        // Démarrage de l'application
+        // Lancement de l'application
         window.addEventListener('DOMContentLoaded', async () => {
             try {
-                // On charge manuellement le point d'entrée
-                await loadAndExecute('./index.tsx');
+                // On démarre par le fichier index.tsx
+                const entryBlobUrl = await loadAndExecute('./index.tsx');
+                // Importation dynamique du module principal
+                await import(entryBlobUrl);
             } catch (e) {
-                showError("Le démarrage a échoué. Vérifiez la console (F12).");
+                console.error("[App] Échec du démarrage critique.");
             }
         });
     </script>
