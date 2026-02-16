@@ -9,25 +9,35 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Inter', sans-serif; margin: 0; padding: 0; }
         @media print {
             .no-print { display: none !important; }
             .print-only { display: block !important; }
             body { background-color: white !important; }
         }
         #root:empty::before {
-            content: 'Chargement des composants...';
+            content: 'Initialisation du système de facturation...';
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            color: #10b981;
+            color: #059669;
             font-weight: 600;
             font-size: 14px;
+            background: #f9fafb;
+        }
+        #loader-error {
+            display: none;
+            padding: 20px;
+            color: #dc2626;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            margin: 20px;
+            border-radius: 12px;
+            font-family: monospace;
         }
     </style>
 
-    <!-- Import Map : Une seule version de React (19.0.0) pour éviter les conflits -->
     <script type="importmap">
 {
   "imports": {
@@ -43,35 +53,56 @@
 }
 </script>
 
-    <!-- Babel Standalone : Permet de lire le TSX directement dans le navigateur -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
 <body class="bg-gray-50 text-gray-900">
+    <div id="loader-error"></div>
     <div id="root"></div>
 
-    <!-- Script de démarrage via Babel -->
-    <!-- data-type="module" permet d'utiliser les imports ES6 dans le code transpilé -->
-    <script type="text/babel" data-type="module" data-presets="react,typescript">
-        import React from 'react';
-        import { createRoot } from 'react-dom/client';
-        import App from './App.tsx';
+    <script type="module">
+        /**
+         * CUSTOM LOADER POUR GITHUB PAGES
+         * Ce script contourne l'erreur "application/octet-stream" en chargeant 
+         * les fichiers .tsx comme du texte avant de les donner à Babel.
+         */
+        const showError = (msg) => {
+            const errDiv = document.getElementById('loader-error');
+            errDiv.style.display = 'block';
+            errDiv.innerHTML = `<b>Erreur de chargement :</b><br>${msg}`;
+        };
 
-        const rootElement = document.getElementById('root');
-        if (rootElement) {
-            const root = createRoot(rootElement);
-            root.render(
-                <React.StrictMode>
-                    <App />
-                </React.StrictMode>
-            );
+        async function loadAndExecute(url) {
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`Impossible de lire ${url} (Status: ${response.status})`);
+                const code = await response.text();
+                
+                // Transpilation du TSX en JS compatible navigateur
+                const transformed = Babel.transform(code, {
+                    presets: ['react', ['typescript', { isTSX: true, allExtensions: true }]],
+                    filename: url
+                }).code;
+
+                // Création d'un module virtuel
+                const blob = new Blob([transformed], { type: 'application/javascript' });
+                const blobUrl = URL.createObjectURL(blob);
+                return await import(blobUrl);
+            } catch (err) {
+                console.error(`Erreur sur ${url}:`, err);
+                showError(err.message);
+                throw err;
+            }
         }
-    </script>
 
-    <script>
-      // Logging des erreurs pour le débogage GitHub Pages
-      window.onerror = function(msg, url, line) {
-        console.error("Erreur Application: " + msg + "\nURL: " + url + "\nLigne: " + line);
-      };
+        // Démarrage de l'application
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // On charge manuellement le point d'entrée
+                await loadAndExecute('./index.tsx');
+            } catch (e) {
+                showError("Le démarrage a échoué. Vérifiez la console (F12).");
+            }
+        });
     </script>
 </body>
 </html>
