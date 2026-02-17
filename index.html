@@ -32,11 +32,11 @@
             color: #b91c1c;
             background: #fef2f2;
             border: 2px solid #fecaca;
-            margin: 20px;
+            margin: 20px auto;
             border-radius: 16px;
-            font-family: system-ui, sans-serif;
             max-width: 800px;
-            margin: 40px auto;
+            white-space: pre-wrap;
+            font-family: monospace;
         }
     </style>
 
@@ -61,69 +61,72 @@
     <div id="root"></div>
 
     <script type="module">
-        const blobCache = new Map(); // Stocke URL_ORIGINE -> BLOB_URL
+        const blobCache = new Map();
 
-        /**
-         * Chargeur de modules intelligent pour GitHub Pages
-         */
-        async function loadAndExecute(relativeUrl, baseUrl = window.location.href) {
-            // Résolution de l'URL absolue réelle (ex: https://.../index.tsx)
-            const absoluteOriginalUrl = new URL(relativeUrl, baseUrl).href;
-            
-            if (blobCache.has(absoluteOriginalUrl)) {
-                return blobCache.get(absoluteOriginalUrl);
-            }
+        async function loadAndExecute(url) {
+            const absoluteUrl = new URL(url, window.location.href).href;
+            if (blobCache.has(absoluteUrl)) return blobCache.get(absoluteUrl);
 
             try {
-                const response = await fetch(absoluteOriginalUrl);
-                if (!response.ok) throw new Error(`Fichier introuvable : ${absoluteOriginalUrl}`);
+                const response = await fetch(absoluteUrl);
+                if (!response.ok) throw new Error(`HTTP ${response.status} sur ${url}`);
                 let code = await response.text();
 
-                // 1. Analyse des imports locaux (.tsx, .ts)
-                const importRegex = /import\s+(?:[\w\s{},*]+(?:\s+as\s+[\w]+)?\s+from\s+)?(['"])((\.\/|\.\.\/)[^'"]+\.(tsx?|ts))\1/g;
+                // Regex améliorée pour capturer les imports locaux avec ou sans extension
+                // Supporte: import {x} from './y', import x from '../z.ts', etc.
+                const importRegex = /from\s+(['"])((\.\/|\.\.\/)[^'"]+)\1/g;
                 const matches = [...code.matchAll(importRegex)];
 
-                // Chargement récursif en utilisant l'URL d'origine pour résoudre les chemins
                 for (const match of matches) {
-                    const foundPath = match[2];
-                    // IMPORTANT : On résout par rapport à absoluteOriginalUrl, pas par rapport à un blob!
-                    const depBlobUrl = await loadAndExecute(foundPath, absoluteOriginalUrl);
-                    // On remplace le chemin par l'URL du blob pour le navigateur
-                    code = code.split(match[0]).join(match[0].replace(foundPath, depBlobUrl));
+                    let relativePath = match[2];
+                    // Si l'extension est manquante, on essaie de la deviner (priorité .tsx puis .ts)
+                    let depUrl = relativePath;
+                    if (!relativePath.endsWith('.ts') && !relativePath.endsWith('.tsx')) {
+                        // On tente d'abord .tsx puis .ts
+                        depUrl = relativePath + '.tsx';
+                    }
+
+                    try {
+                        const depBlobUrl = await loadAndExecute(new URL(depUrl, absoluteUrl).href);
+                        code = code.replace(match[0], `from '${depBlobUrl}'`);
+                    } catch (e) {
+                        // Si .tsx échoue, on tente .ts
+                        if (depUrl.endsWith('.tsx')) {
+                            const fallbackUrl = relativePath + '.ts';
+                            const depBlobUrl = await loadAndExecute(new URL(fallbackUrl, absoluteUrl).href);
+                            code = code.replace(match[0], `from '${depBlobUrl}'`);
+                        } else {
+                            throw e;
+                        }
+                    }
                 }
 
-                // 2. Transpilation Babel (TSX -> JS)
                 const transformed = Babel.transform(code, {
                     presets: ['react', ['typescript', { isTSX: true, allExtensions: true }]],
-                    filename: absoluteOriginalUrl
+                    filename: absoluteUrl
                 }).code;
 
-                // 3. Création du module virtuel
                 const blob = new Blob([transformed], { type: 'application/javascript' });
                 const blobUrl = URL.createObjectURL(blob);
-                
-                blobCache.set(absoluteOriginalUrl, blobUrl);
+                blobCache.set(absoluteUrl, blobUrl);
                 return blobUrl;
             } catch (err) {
-                console.error(`[Loader] Erreur sur ${absoluteOriginalUrl}:`, err);
+                console.error(`[Loader] Erreur critique sur ${url}:`, err);
                 const errDiv = document.getElementById('loader-error');
                 errDiv.style.display = 'block';
-                errDiv.innerHTML += `<div>❌ <b>${relativeUrl}</b> : ${err.message}</div>`;
+                errDiv.textContent += `❌ Erreur de chargement : ${url}\n${err.message}\n\n`;
                 throw err;
             }
         }
 
-        // Démarrage de l'application
-        (async () => {
+        window.addEventListener('load', async () => {
             try {
-                // On charge le point d'entrée
-                const entryPointBlob = await loadAndExecute('./index.tsx');
-                // On l'exécute
-                await import(entryPointBlob);
+                const entryBlob = await loadAndExecute('./index.tsx');
+                await import(entryBlob);
             } catch (e) {
-                console.error("[App] Échec critique au démarrage.");
+                console.error("[Runtime] Échec du lancement de l'application.");
             }
-        })();
+        });
     </script>
 </body>
 </html>

@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { Users, Plus, Search, Edit2, Trash2, Mail, Phone, MapPin, X } from 'lucide-react';
-import { dataService } from '../services/dataService';
-import { Client } from '../types';
+import { dataService } from '../services/dataService.ts';
+import { Client } from '../types.ts';
 
 const ClientView = () => {
   const [clients, setClients] = useState<Client[]>([]);

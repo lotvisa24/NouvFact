@@ -1,13 +1,11 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Receipt, Search, Trash2, Printer, CreditCard, Download, X, Eye } from 'lucide-react';
-import { dataService } from '../services/dataService';
-import { Invoice, Payment, PaymentMode, DocumentStatus } from '../types';
-import { formatCurrency, formatDate } from '../utils/formatters';
+import { dataService } from '../services/dataService.ts';
+import { Invoice, Payment, PaymentMode, DocumentStatus } from '../types.ts';
+import { formatCurrency, formatDate } from '../utils/formatters.ts';
 import html2pdf from 'html2pdf.js';
 
-// Extracted Template for reuse in Preview and Print
 const InvoiceTemplate = ({ inv, showUnit }: { inv: Invoice, showUnit: boolean }) => (
   <div className="bg-white p-10 text-gray-800" style={{ width: '210mm', minHeight: '297mm', margin: 'auto' }}>
     <div className="flex justify-between items-start mb-10 border-b-4 border-gray-900 pb-8">
@@ -204,7 +202,6 @@ const InvoiceView = () => {
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
 
-        // Robust detection of html2pdf function
         let exporter = html2pdf;
         if (exporter && (exporter as any).default) {
             exporter = (exporter as any).default;
@@ -213,8 +210,7 @@ const InvoiceView = () => {
         if (typeof exporter === 'function') {
           await (exporter as any)().from(printRef.current).set(opt).save();
         } else {
-          console.error("html2pdf library is not loaded correctly as a function", exporter);
-          alert("Erreur lors de la génération du PDF. Veuillez réessayer ou imprimer le document.");
+          alert("Erreur PDF.");
         }
       }
     }, 150);
@@ -316,7 +312,6 @@ const InvoiceView = () => {
         </div>
       </div>
 
-      {/* Preview Modal */}
       {isPreviewOpen && selectedInvoice && (
         <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center p-4 bg-black/60 backdrop-blur-sm no-print">
           <div className="w-full max-w-5xl bg-white rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[95vh]">
@@ -363,12 +358,10 @@ const InvoiceView = () => {
         </div>
       )}
 
-      {/* Hidden Print/PDF Template */}
       <div className="hidden print-only" ref={printRef}>
         {selectedInvoice && <InvoiceTemplate inv={selectedInvoice} showUnit={showUnit} />}
       </div>
 
-      {/* Payment Modal */}
       {isPaymentModalOpen && selectedInvoice && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsPaymentModalOpen(false)} />

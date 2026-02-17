@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { Package, Plus, Search, Edit2, Trash2, Power, X, Eye, EyeOff } from 'lucide-react';
-import { dataService } from '../services/dataService';
-import { Product } from '../types';
-import { formatCurrency } from '../utils/formatters';
+import { dataService } from '../services/dataService.ts';
+import { Product } from '../types.ts';
+import { formatCurrency } from '../utils/formatters.ts';
 
 const ProductView = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -183,7 +182,6 @@ const ProductView = () => {
         </div>
       </div>
 
-      {/* Product Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />

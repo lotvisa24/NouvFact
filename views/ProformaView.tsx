@@ -1,13 +1,12 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   FileText, Search, Edit2, Trash2, Printer, 
   CheckCircle, Download, Eye, X, ExternalLink, Banknote 
 } from 'lucide-react';
-import { dataService } from '../services/dataService';
-import { Proforma, Invoice, DocumentStatus } from '../types';
-import { formatCurrency, formatDate, generateNumber } from '../utils/formatters';
+import { dataService } from '../services/dataService.ts';
+import { Proforma, Invoice, DocumentStatus } from '../types.ts';
+import { formatCurrency, formatDate, generateNumber } from '../utils/formatters.ts';
 import html2pdf from 'html2pdf.js';
 
 const ProformaTemplate = ({ p, showUnit }: { p: Proforma, showUnit: boolean }) => (
@@ -104,9 +103,6 @@ const ProformaView = () => {
     const matchesSearch = p.number.toLowerCase().includes(search.toLowerCase()) || 
                          p.clientName.toLowerCase().includes(search.toLowerCase());
     
-    // Tab filtering: 
-    // Pending: not converted AND not paid
-    // Validated: converted OR paid
     const isProcessed = !!p.convertedToInvoiceId || p.status === DocumentStatus.PAID;
     const matchesTab = activeTab === 'pending' ? !isProcessed : isProcessed;
     
