@@ -16,7 +16,7 @@
             body { background-color: white !important; }
         }
         #root:empty::before {
-            content: 'Chargement du système de facturation...';
+            content: 'Chargement des modules...';
             display: flex;
             justify-content: center;
             align-items: center;
@@ -32,13 +32,14 @@
             color: #b91c1c;
             background: #fef2f2;
             border: 2px solid #fecaca;
-            margin: 20px auto;
+            margin: 20px;
             border-radius: 16px;
-            max-width: 800px;
-            white-space: pre-wrap;
             font-family: monospace;
             z-index: 1000;
             position: relative;
+            white-space: pre-wrap;
+            font-size: 12px;
+            line-height: 1.5;
         }
     </style>
 
@@ -46,6 +47,7 @@
 {
   "imports": {
     "react": "https://esm.sh/react@19.0.0",
+    "react/jsx-runtime": "https://esm.sh/react@19.0.0/jsx-runtime",
     "react-dom": "https://esm.sh/react-dom@19.0.0",
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
     "react-router-dom": "https://esm.sh/react-router-dom@7.1.3?deps=react@19.0.0",
@@ -65,46 +67,64 @@
     <script type="module">
         const moduleCache = new Map();
 
-        async function loadAndExecute(url) {
-            const absoluteUrl = new URL(url, window.location.href).href;
+        // Calcul robuste de la base URL du projet (le répertoire contenant index.html)
+        const getSafeBaseUrl = () => {
+            try {
+                // Utilise document.baseURI s'il existe, sinon l'URL courante
+                // Résout './' par rapport à l'URL pour garantir un slash final et supprimer le nom du fichier
+                const url = new URL('./', document.baseURI || window.location.href);
+                return url.href;
+            } catch (e) {
+                console.warn("[Loader] Échec du calcul de baseURI, repli sur origin.", e);
+                return window.location.origin + '/';
+            }
+        };
+
+        const safeBaseUrl = getSafeBaseUrl();
+        console.log(`[Loader] Base URL identifiée : ${safeBaseUrl}`);
+
+        async function loadAndExecute(url, baseUrl = safeBaseUrl) {
+            let absoluteUrl;
+            try {
+                // Toujours résoudre par rapport à une base HTTP(S) absolue
+                absoluteUrl = new URL(url, baseUrl).href;
+            } catch (e) {
+                const msg = `URL Invalide : url=${url}, base=${baseUrl}`;
+                console.error(`[Loader] ${msg}`);
+                throw new Error(msg);
+            }
+            
             if (moduleCache.has(absoluteUrl)) return moduleCache.get(absoluteUrl);
 
             const loadPromise = (async () => {
                 try {
-                    const response = await fetch(absoluteUrl);
-                    if (!response.ok) throw new Error(`HTTP ${response.status} sur ${url}`);
+                    console.debug(`[Loader] Chargement de : ${absoluteUrl}`);
+                    const response = await fetch(absoluteUrl, { cache: 'no-cache' });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status} - Le fichier est introuvable à l'adresse : ${absoluteUrl}`);
+                    }
+                    
                     let code = await response.text();
 
-                    // Regex for imports: captures relative paths starting with ./ or ../
+                    // Regex pour capturer les imports locaux
                     const importRegex = /from\s+(['"])((\.\/|\.\.\/)[^'"]+)\1/g;
-                    
                     const matches = Array.from(code.matchAll(importRegex));
-                    const replacementMap = new Map();
-
+                    
                     for (const match of matches) {
                         const originalStatement = match[0];
                         const relativePath = match[2];
                         
-                        let depUrl = relativePath;
-                        if (!relativePath.endsWith('.ts') && !relativePath.endsWith('.tsx')) {
-                            // Tentative intelligente de résolution d'extension
-                            try {
-                                const tryTsx = new URL(relativePath + '.tsx', absoluteUrl).href;
-                                const check = await fetch(tryTsx, { method: 'HEAD' });
-                                if (check.ok) depUrl = relativePath + '.tsx';
-                                else depUrl = relativePath + '.ts';
-                            } catch {
-                                depUrl = relativePath + '.ts';
-                            }
+                        let depPath = relativePath;
+                        // Ajout d'extension par défaut si absente
+                        if (!depPath.includes('.')) {
+                            depPath += '.tsx';
                         }
 
-                        const depBlobUrl = await loadAndExecute(new URL(depUrl, absoluteUrl).href);
-                        replacementMap.set(originalStatement, `from '${depBlobUrl}'`);
-                    }
-
-                    // Application des remplacements
-                    for (const [oldStr, newStr] of replacementMap) {
-                        code = code.split(oldStr).join(newStr);
+                        // Appel récursif pour résoudre la dépendance
+                        // On passe l'URL absolue du fichier actuel comme base pour le suivant
+                        const depBlobUrl = await loadAndExecute(depPath, absoluteUrl);
+                        code = code.split(originalStatement).join(`from '${depBlobUrl}'`);
                     }
 
                     const transformed = Babel.transform(code, {
@@ -118,8 +138,8 @@
                     const blob = new Blob([transformed], { type: 'application/javascript' });
                     return URL.createObjectURL(blob);
                 } catch (err) {
-                    console.error(`[Loader] Erreur sur ${url}:`, err);
-                    showError(`Erreur de chargement : ${url}\n${err.message}`);
+                    console.error(`[Loader] Erreur sur ${absoluteUrl}:`, err);
+                    showError(err.message);
                     throw err;
                 }
             })();
@@ -131,18 +151,21 @@
         function showError(msg) {
             const errDiv = document.getElementById('loader-error');
             errDiv.style.display = 'block';
-            errDiv.textContent += `❌ ${msg}\n\n`;
+            errDiv.textContent += `❌ ${msg}\n`;
         }
 
-        window.addEventListener('load', async () => {
+        // Lancement immédiat pour les scripts de type module
+        (async () => {
             try {
-                const entryBlobUrl = await loadAndExecute('./index.tsx');
+                // Point d'entrée principal
+                const entryBlobUrl = await loadAndExecute('index.tsx', safeBaseUrl);
                 await import(entryBlobUrl);
+                console.log("[Loader] Application démarrée avec succès.");
             } catch (e) {
-                console.error("[Runtime] Échec fatal.", e);
+                console.error("[Runtime] Échec critique.", e);
                 showError(`Échec fatal du lancement : ${e.message}`);
             }
-        });
+        })();
     </script>
 </body>
 </html>
