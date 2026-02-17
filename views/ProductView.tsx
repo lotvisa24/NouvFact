@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Package, Plus, Search, Edit2, Trash2, Power, X, Eye, EyeOff } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Package, Plus, Search, Edit2, Trash2, Power, X, Eye, EyeOff, FileSpreadsheet, Upload, CheckCircle2, Info } from 'lucide-react';
 import { dataService } from '../services/dataService.ts';
 import { Product } from '../types.ts';
 import { formatCurrency } from '../utils/formatters.ts';
+import * as XLSX from 'xlsx';
 
 const ProductView = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -10,6 +11,9 @@ const ProductView = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showUnitColumn, setShowUnitColumn] = useState(true);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importFeedback, setImportFeedback] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setProducts(dataService.getProducts());
@@ -68,6 +72,68 @@ const ProductView = () => {
     dataService.saveSettings({ ...dataService.getSettings(), showUnitColumn: newValue });
   };
 
+  const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    const reader = new FileReader();
+
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+
+        if (data.length === 0) {
+          alert("Le fichier est vide.");
+          setIsImporting(false);
+          return;
+        }
+
+        // Détection de l'en-tête (Nom ou Désignation dans la première colonne)
+        const firstCell = String(data[0][0] || '').toLowerCase();
+        const startIdx = (firstCell.includes('nom') || firstCell.includes('désignation') || firstCell.includes('designation')) ? 1 : 0;
+        
+        const newProductsFromExcel: Product[] = [];
+        for (let i = startIdx; i < data.length; i++) {
+          const row = data[i];
+          if (!row[0]) continue; // Saute si pas de nom
+
+          newProductsFromExcel.push({
+            id: `xls-${Date.now()}-${i}`,
+            name: String(row[0]),
+            category: row[1] ? String(row[1]) : 'Général',
+            unit: row[2] ? String(row[2]) : undefined,
+            unitPrice: parseInt(String(row[3]).replace(/[^0-9]/g, '')) || 0,
+            description: row[4] ? String(row[4]) : undefined,
+            isActive: true
+          });
+        }
+
+        if (newProductsFromExcel.length > 0) {
+          const finalProducts = [...products, ...newProductsFromExcel];
+          setProducts(finalProducts);
+          dataService.saveProducts(finalProducts);
+          setImportFeedback(`${newProductsFromExcel.length} produits importés !`);
+          setTimeout(() => setImportFeedback(null), 5000);
+        } else {
+          alert("Aucun produit valide trouvé. Colonnes attendues : Nom, Catégorie, Unité, Prix, Description.");
+        }
+      } catch (err) {
+        console.error("Excel import error:", err);
+        alert("Erreur lors de la lecture du fichier Excel. Vérifiez que c'est un fichier .xlsx valide.");
+      } finally {
+        setIsImporting(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+
+    reader.readAsBinaryString(file);
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -75,7 +141,14 @@ const ProductView = () => {
           <h2 className="text-2xl font-bold text-gray-900">Catalogue Produits</h2>
           <p className="text-sm text-gray-500 font-medium">Gérez vos articles et tarifs de vente.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {importFeedback && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-xl text-xs font-bold animate-pulse">
+              <CheckCircle2 size={14} />
+              {importFeedback}
+            </div>
+          )}
+          
           <button 
             onClick={toggleUnitColumnVisibility}
             className={`flex items-center gap-2 px-4 py-3 rounded-2xl font-bold transition-all border ${
@@ -84,14 +157,47 @@ const ProductView = () => {
             title={showUnitColumn ? "Masquer la colonne Unité" : "Afficher la colonne Unité"}
           >
             {showUnitColumn ? <Eye size={18} /> : <EyeOff size={18} />}
-            <span className="text-sm">Colonne Unité</span>
+            <span className="text-sm">Colonnes</span>
           </button>
+
+          <div className="relative group">
+            <input 
+              type="file" 
+              ref={fileInputRef}
+              accept=".xlsx, .xls" 
+              className="hidden" 
+              onChange={handleExcelImport}
+            />
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isImporting}
+              className="flex items-center justify-center gap-2 bg-white text-emerald-600 border border-emerald-100 px-6 py-3 rounded-2xl hover:bg-emerald-50 transition-all font-bold shadow-sm"
+            >
+              <FileSpreadsheet size={20} />
+              {isImporting ? 'Importation...' : 'Importer Excel'}
+            </button>
+            
+            <div className="absolute right-0 top-full mt-2 w-64 p-4 bg-gray-900 text-white rounded-2xl text-[10px] opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 shadow-xl border border-gray-700">
+               <div className="flex items-center gap-2 mb-2 text-emerald-400 font-bold uppercase tracking-widest">
+                  <Info size={12} /> Format attendu
+               </div>
+               <p className="mb-2 text-gray-400 font-medium">L'ordre des colonnes doit être :</p>
+               <ol className="list-decimal list-inside space-y-1 text-gray-300">
+                  <li><span className="font-bold text-white">Nom</span> (ex: Paracétamol)</li>
+                  <li><span className="font-bold text-white">Catégorie</span> (ex: Antalgique)</li>
+                  <li><span className="font-bold text-white">Unité</span> (ex: Boîte)</li>
+                  <li><span className="font-bold text-white">Prix</span> (ex: 1500)</li>
+                  <li><span className="font-bold text-white">Description</span> (ex: Détails)</li>
+               </ol>
+            </div>
+          </div>
+
           <button 
             onClick={() => { setEditingProduct(null); setIsModalOpen(true); }}
             className="flex items-center justify-center gap-2 bg-emerald-600 text-white px-6 py-3 rounded-2xl hover:bg-emerald-700 transition-all font-bold shadow-lg shadow-emerald-100"
           >
             <Plus size={20} />
-            Ajouter un produit
+            Nouveau produit
           </button>
         </div>
       </div>
@@ -141,7 +247,7 @@ const ProductView = () => {
                     <span className="text-sm font-bold text-emerald-600">{formatCurrency(product.unitPrice)}</span>
                   </td>
                   <td className="px-6 py-4 text-center">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                       product.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
                     }`}>
                       {product.isActive ? 'Actif' : 'Inactif'}

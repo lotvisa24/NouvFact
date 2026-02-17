@@ -16,7 +16,7 @@
             body { background-color: white !important; }
         }
         #root:empty::before {
-            content: 'Chargement des modules...';
+            content: 'Chargement du système...';
             display: flex;
             justify-content: center;
             align-items: center;
@@ -53,12 +53,13 @@
     "react-router-dom": "https://esm.sh/react-router-dom@7.1.3?deps=react@19.0.0",
     "lucide-react": "https://esm.sh/lucide-react@0.474.0?deps=react@19.0.0",
     "html2pdf.js": "https://esm.sh/html2pdf.js@0.10.1?bundle",
+    "xlsx": "https://esm.sh/xlsx@0.18.5",
     "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
     "react/": "https://esm.sh/react@^19.2.4/"
   }
 }
 </script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.23.11/babel.min.js"></script>
 </head>
 <body class="bg-gray-50 text-gray-900">
     <div id="loader-error"></div>
@@ -67,67 +68,56 @@
     <script type="module">
         const moduleCache = new Map();
 
-        // Calcul robuste de la base URL du projet (le répertoire contenant index.html)
         const getSafeBaseUrl = () => {
             try {
-                // Utilise document.baseURI s'il existe, sinon l'URL courante
-                // Résout './' par rapport à l'URL pour garantir un slash final et supprimer le nom du fichier
                 const url = new URL('./', document.baseURI || window.location.href);
                 return url.href;
             } catch (e) {
-                console.warn("[Loader] Échec du calcul de baseURI, repli sur origin.", e);
                 return window.location.origin + '/';
             }
         };
 
         const safeBaseUrl = getSafeBaseUrl();
-        console.log(`[Loader] Base URL identifiée : ${safeBaseUrl}`);
 
         async function loadAndExecute(url, baseUrl = safeBaseUrl) {
             let absoluteUrl;
             try {
-                // Toujours résoudre par rapport à une base HTTP(S) absolue
                 absoluteUrl = new URL(url, baseUrl).href;
             } catch (e) {
-                const msg = `URL Invalide : url=${url}, base=${baseUrl}`;
-                console.error(`[Loader] ${msg}`);
-                throw new Error(msg);
+                throw new Error(`URL Invalide : ${url}`);
             }
             
             if (moduleCache.has(absoluteUrl)) return moduleCache.get(absoluteUrl);
 
             const loadPromise = (async () => {
                 try {
-                    console.debug(`[Loader] Chargement de : ${absoluteUrl}`);
                     const response = await fetch(absoluteUrl, { cache: 'no-cache' });
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status} - Le fichier est introuvable à l'adresse : ${absoluteUrl}`);
-                    }
+                    if (!response.ok) throw new Error(`HTTP ${response.status} sur ${absoluteUrl}`);
                     
                     let code = await response.text();
-
-                    // Regex pour capturer les imports locaux
                     const importRegex = /from\s+(['"])((\.\/|\.\.\/)[^'"]+)\1/g;
                     const matches = Array.from(code.matchAll(importRegex));
                     
                     for (const match of matches) {
                         const originalStatement = match[0];
                         const relativePath = match[2];
-                        
-                        let depPath = relativePath;
-                        // Ajout d'extension par défaut si absente
-                        if (!depPath.includes('.')) {
-                            depPath += '.tsx';
-                        }
-
-                        // Appel récursif pour résoudre la dépendance
-                        // On passe l'URL absolue du fichier actuel comme base pour le suivant
+                        let depPath = relativePath.endsWith('.ts') || relativePath.endsWith('.tsx') ? relativePath : relativePath + '.tsx';
                         const depBlobUrl = await loadAndExecute(depPath, absoluteUrl);
                         code = code.split(originalStatement).join(`from '${depBlobUrl}'`);
                     }
 
-                    const transformed = Babel.transform(code, {
+                    // Attente explicite si Babel n'est pas encore prêt (CDN lent)
+                    let attempts = 0;
+                    while (typeof window.Babel === 'undefined' && attempts < 50) {
+                        await new Promise(r => setTimeout(r, 100));
+                        attempts++;
+                    }
+
+                    if (typeof window.Babel === 'undefined') {
+                        throw new Error("Babel standalone n'a pas pu être chargé depuis le CDN.");
+                    }
+
+                    const transformed = window.Babel.transform(code, {
                         presets: [
                             ['react', { runtime: 'automatic' }],
                             ['typescript', { isTSX: true, allExtensions: true }]
@@ -138,7 +128,6 @@
                     const blob = new Blob([transformed], { type: 'application/javascript' });
                     return URL.createObjectURL(blob);
                 } catch (err) {
-                    console.error(`[Loader] Erreur sur ${absoluteUrl}:`, err);
                     showError(err.message);
                     throw err;
                 }
@@ -154,16 +143,12 @@
             errDiv.textContent += `❌ ${msg}\n`;
         }
 
-        // Lancement immédiat pour les scripts de type module
         (async () => {
             try {
-                // Point d'entrée principal
                 const entryBlobUrl = await loadAndExecute('index.tsx', safeBaseUrl);
                 await import(entryBlobUrl);
-                console.log("[Loader] Application démarrée avec succès.");
             } catch (e) {
-                console.error("[Runtime] Échec critique.", e);
-                showError(`Échec fatal du lancement : ${e.message}`);
+                showError(`Échec critique : ${e.message}`);
             }
         })();
     </script>
