@@ -177,18 +177,19 @@ const ProformaView = () => {
     setSelectedProforma(p);
     setTimeout(() => {
       window.print();
-    }, 100);
+    }, 200);
   };
 
   const handleExportPDF = async (p: Proforma) => {
     setSelectedProforma(p);
+    // Attendre que React rende le template dans le container hors-écran
     setTimeout(async () => {
       if (printRef.current) {
         const opt = {
-          margin: 10,
+          margin: 0,
           filename: `PROFORMA_${p.number}.pdf`,
           image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { scale: 2 },
+          html2canvas: { scale: 2, useCORS: true, letterRendering: true },
           jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
         };
         
@@ -197,13 +198,20 @@ const ProformaView = () => {
             exporter = (exporter as any).default;
         }
         
-        if (typeof exporter === 'function') {
-          await (exporter as any)().from(printRef.current).set(opt).save();
-        } else {
-          alert("Erreur PDF.");
+        try {
+          if (typeof exporter === 'function') {
+            await (exporter as any)().from(printRef.current).set(opt).save();
+          } else {
+             // Fallback pour certains types d'imports ESM
+             const h2p = (window as any).html2pdf || exporter;
+             await h2p().from(printRef.current).set(opt).save();
+          }
+        } catch (e) {
+          console.error("Erreur PDF:", e);
+          alert("Erreur lors de la génération du PDF.");
         }
       }
-    }, 150);
+    }, 300);
   };
 
   const handlePreview = (p: Proforma) => {
@@ -412,8 +420,11 @@ const ProformaView = () => {
         </div>
       )}
 
-      <div className="hidden print-only" ref={printRef}>
-        {selectedProforma && <ProformaTemplate p={selectedProforma} showUnit={showUnit} />}
+      {/* Container pour l'export PDF et l'impression (invisible mais accessible pour le rendu) */}
+      <div style={{ position: 'absolute', left: '-9999px', top: '0', zIndex: -1 }}>
+        <div ref={printRef}>
+          {selectedProforma && <ProformaTemplate p={selectedProforma} showUnit={showUnit} />}
+        </div>
       </div>
     </div>
   );
