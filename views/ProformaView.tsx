@@ -6,79 +6,95 @@ import {
 } from 'lucide-react';
 import { dataService } from '../services/dataService.ts';
 import { Proforma, Invoice, DocumentStatus } from '../types.ts';
-import { formatCurrency, formatDate, generateNumber } from '../utils/formatters.ts';
+import { formatCurrency, formatDate, generateNumber, numberToWords } from '../utils/formatters.ts';
 import html2pdf from 'html2pdf.js';
 
 const ProformaTemplate = ({ p, showUnit }: { p: Proforma, showUnit: boolean }) => (
-  <div className="bg-white p-10 text-gray-800" style={{ width: '210mm', minHeight: '297mm', margin: 'auto' }}>
-    <div className="flex justify-between items-start mb-10 border-b-2 border-emerald-600 pb-8">
+  <div className="bg-white p-8 text-gray-800 flex flex-col" style={{ width: '210mm', minHeight: '297mm', margin: 'auto' }}>
+    <div className="flex justify-between items-start mb-6 border-b-2 border-emerald-600 pb-4">
       <div>
-        <h1 className="text-3xl font-black text-emerald-600 mb-2">PHARMACIE NOUVELLE</h1>
-        <p className="text-gray-600 font-bold uppercase tracking-widest text-xs">Abidjan - Plateau, Avenue Jean Paul II</p>
-        <p className="text-gray-500 text-[11px] mt-1 italic">Tel: +225 21 00 00 00 | RC: 123456</p>
+        <h1 className="text-2xl font-black text-emerald-600 mb-1">PHARMACIE NOUVELLE</h1>
+        <p className="text-gray-600 font-bold uppercase tracking-widest text-[10px]">Abidjan - Plateau, Avenue Jean Paul II</p>
+        <p className="text-gray-500 text-[9px] italic">Tel: +225 21 00 00 00 | RC: 123456</p>
       </div>
       <div className="text-right">
-        <h2 className="text-2xl font-black text-gray-900 mb-1 uppercase tracking-tight">FACTURE PROFORMA</h2>
-        <p className="text-emerald-600 font-black text-xl">{p.number}</p>
-        <p className="text-gray-500 mt-2 font-medium">Date: {formatDate(p.date)}</p>
+        <h2 className="text-xl font-black text-gray-900 mb-0 uppercase tracking-tight">FACTURE PROFORMA</h2>
+        <p className="text-emerald-600 font-black text-lg">{p.number}</p>
+        <p className="text-gray-500 text-xs font-medium">Date: {formatDate(p.date)}</p>
       </div>
     </div>
 
-    <div className="mb-10 p-8 bg-gray-50 rounded-3xl border border-gray-100">
-      <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-3">DESTINATAIRE</p>
-      <h3 className="text-2xl font-black text-gray-900">{p.clientName}</h3>
-      <div className="mt-4 space-y-1 text-sm text-gray-600 font-medium">
+    <div className="mb-6 p-6 bg-gray-50 rounded-2xl border border-gray-100">
+      <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1">DESTINATAIRE</p>
+      <h3 className="text-xl font-black text-gray-900">{p.clientName}</h3>
+      <div className="mt-2 text-xs text-gray-600 font-medium">
         <p>Abidjan, Côte d'Ivoire</p>
-        <p>Document commercial</p>
       </div>
     </div>
 
-    <table className="w-full mb-10">
-      <thead>
-        <tr className="bg-emerald-600 text-white text-left text-[11px] uppercase tracking-wider">
-          <th className="py-4 px-4 font-bold rounded-l-xl">Désignation</th>
-          {showUnit && <th className="py-4 px-4 font-bold text-center">Unité</th>}
-          <th className="py-4 px-4 font-bold text-center">Qté</th>
-          <th className="py-4 px-4 font-bold text-right">Prix Unit.</th>
-          <th className="py-4 px-4 font-bold text-right rounded-r-xl">Total HT</th>
-        </tr>
-      </thead>
-      <tbody className="divide-y divide-gray-100">
-        {p.items.map(item => (
-          <tr key={item.id}>
-            <td className="py-4 px-4 font-bold text-gray-900 text-sm">{item.productName}</td>
-            {showUnit && <td className="py-4 px-4 text-center text-xs font-medium text-gray-500">{item.productUnit || '-'}</td>}
-            <td className="py-4 px-4 text-center font-medium text-gray-600 text-sm">{item.quantity}</td>
-            <td className="py-4 px-4 text-right font-medium text-gray-600 text-sm">{formatCurrency(item.unitPrice)}</td>
-            <td className="py-4 px-4 text-right font-black text-gray-900 text-sm">{formatCurrency(item.total)}</td>
+    <div className="flex-grow">
+      <table className="w-full mb-6">
+        <thead>
+          <tr className="bg-emerald-600 text-white text-left text-[10px] uppercase tracking-wider">
+            <th className="py-3 px-4 font-bold rounded-l-lg">Désignation</th>
+            {showUnit && <th className="py-3 px-4 font-bold text-center">Unité</th>}
+            <th className="py-3 px-4 font-bold text-center">Qté</th>
+            <th className="py-3 px-4 font-bold text-right">Prix Unit.</th>
+            <th className="py-3 px-4 font-bold text-right rounded-r-lg">Total HT</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {p.items.map(item => (
+            <tr key={item.id}>
+              <td className="py-3 px-4 font-bold text-gray-900 text-xs">{item.productName}</td>
+              {showUnit && <td className="py-3 px-4 text-center text-[10px] font-medium text-gray-500">{item.productUnit || '-'}</td>}
+              <td className="py-3 px-4 text-center font-medium text-gray-600 text-xs">{item.quantity}</td>
+              <td className="py-3 px-4 text-right font-medium text-gray-600 text-xs">{formatCurrency(item.unitPrice)}</td>
+              <td className="py-3 px-4 text-right font-black text-gray-900 text-xs">{formatCurrency(item.total)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
 
-    <div className="flex justify-end pt-6 border-t border-gray-100">
-      <div className="w-80 space-y-4">
-        <div className="flex justify-between text-gray-500 font-bold">
-          <span className="uppercase text-xs tracking-wider">Sous-total</span>
+    <div className="flex justify-end pt-4 border-t border-gray-100 mb-4">
+      <div className="w-64 space-y-2">
+        <div className="flex justify-between text-gray-500 font-bold text-xs">
+          <span className="uppercase tracking-wider">Sous-total</span>
           <span>{formatCurrency(p.subtotal)}</span>
         </div>
-        <div className="flex justify-between text-gray-500 font-bold">
-          <span className="uppercase text-xs tracking-wider">Remise</span>
+        <div className="flex justify-between text-gray-500 font-bold text-xs">
+          <span className="uppercase tracking-wider">Remise</span>
           <span>- {formatCurrency(p.discount)}</span>
         </div>
         <div className="h-0.5 bg-emerald-600" />
-        <div className="flex justify-between text-2xl font-black text-emerald-600">
+        <div className="flex justify-between text-xl font-black text-emerald-600">
           <span>TOTAL NET</span>
           <span>{formatCurrency(p.total)}</span>
         </div>
       </div>
     </div>
 
-    <div className="mt-24 pt-10 border-t-2 border-gray-100 text-center text-gray-400 text-[11px] leading-relaxed">
-      <p className="font-black text-gray-500 uppercase tracking-widest mb-2">Conditions de vente</p>
-      <p>Cette proforma est valable 30 jours à compter de la date d'émission.</p>
-      <p>Livraison sous 24h après validation du bon de commande.</p>
-      <p className="mt-6 italic font-bold text-emerald-600">Pharmacie Nouvelle - Votre santé, notre priorité.</p>
+    <div className="mb-6 p-4 bg-gray-50 rounded-xl border-l-4 border-emerald-600">
+      <p className="text-xs font-medium text-gray-700 leading-relaxed italic">
+        Arrêté la présente facture proforma à la somme nette de : <br/>
+        <span className="font-black text-gray-900 not-italic uppercase tracking-tight text-sm">
+          {numberToWords(p.total)} Francs CFA
+        </span>
+      </p>
+    </div>
+
+    <div className="mt-auto pt-6 border-t border-gray-100 text-center text-gray-400 text-[10px]">
+      <div className="flex justify-between items-center mb-4">
+        <div className="text-left italic">
+          <p>Validité : 30 jours</p>
+          <p>Livraison : 24h après BC</p>
+        </div>
+        <div className="text-right border-t border-gray-200 pt-2 w-40">
+          <p className="font-black text-gray-400 uppercase tracking-tighter mb-8 text-center">Cachet & Signature</p>
+        </div>
+      </div>
+      <p className="italic font-bold text-emerald-600">Pharmacie Nouvelle - Votre santé, notre priorité.</p>
     </div>
   </div>
 );
@@ -182,7 +198,6 @@ const ProformaView = () => {
 
   const handleExportPDF = async (p: Proforma) => {
     setSelectedProforma(p);
-    // Attendre que React rende le template dans le container hors-écran
     setTimeout(async () => {
       if (printRef.current) {
         const opt = {
@@ -202,7 +217,6 @@ const ProformaView = () => {
           if (typeof exporter === 'function') {
             await (exporter as any)().from(printRef.current).set(opt).save();
           } else {
-             // Fallback pour certains types d'imports ESM
              const h2p = (window as any).html2pdf || exporter;
              await h2p().from(printRef.current).set(opt).save();
           }
@@ -420,7 +434,6 @@ const ProformaView = () => {
         </div>
       )}
 
-      {/* Container pour l'export PDF et l'impression (invisible mais accessible pour le rendu) */}
       <div style={{ position: 'absolute', left: '-9999px', top: '0', zIndex: -1 }}>
         <div ref={printRef}>
           {selectedProforma && <ProformaTemplate p={selectedProforma} showUnit={showUnit} />}
