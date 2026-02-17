@@ -37,6 +37,8 @@
             max-width: 800px;
             white-space: pre-wrap;
             font-family: monospace;
+            z-index: 1000;
+            position: relative;
         }
     </style>
 
@@ -61,70 +63,84 @@
     <div id="root"></div>
 
     <script type="module">
-        const blobCache = new Map();
+        const moduleCache = new Map();
 
         async function loadAndExecute(url) {
             const absoluteUrl = new URL(url, window.location.href).href;
-            if (blobCache.has(absoluteUrl)) return blobCache.get(absoluteUrl);
+            if (moduleCache.has(absoluteUrl)) return moduleCache.get(absoluteUrl);
 
-            try {
-                const response = await fetch(absoluteUrl);
-                if (!response.ok) throw new Error(`HTTP ${response.status} sur ${url}`);
-                let code = await response.text();
+            const loadPromise = (async () => {
+                try {
+                    const response = await fetch(absoluteUrl);
+                    if (!response.ok) throw new Error(`HTTP ${response.status} sur ${url}`);
+                    let code = await response.text();
 
-                // Regex améliorée pour capturer les imports locaux avec ou sans extension
-                // Supporte: import {x} from './y', import x from '../z.ts', etc.
-                const importRegex = /from\s+(['"])((\.\/|\.\.\/)[^'"]+)\1/g;
-                const matches = [...code.matchAll(importRegex)];
+                    // Regex for imports: captures relative paths starting with ./ or ../
+                    const importRegex = /from\s+(['"])((\.\/|\.\.\/)[^'"]+)\1/g;
+                    
+                    const matches = Array.from(code.matchAll(importRegex));
+                    const replacementMap = new Map();
 
-                for (const match of matches) {
-                    let relativePath = match[2];
-                    // Si l'extension est manquante, on essaie de la deviner (priorité .tsx puis .ts)
-                    let depUrl = relativePath;
-                    if (!relativePath.endsWith('.ts') && !relativePath.endsWith('.tsx')) {
-                        // On tente d'abord .tsx puis .ts
-                        depUrl = relativePath + '.tsx';
-                    }
-
-                    try {
-                        const depBlobUrl = await loadAndExecute(new URL(depUrl, absoluteUrl).href);
-                        code = code.replace(match[0], `from '${depBlobUrl}'`);
-                    } catch (e) {
-                        // Si .tsx échoue, on tente .ts
-                        if (depUrl.endsWith('.tsx')) {
-                            const fallbackUrl = relativePath + '.ts';
-                            const depBlobUrl = await loadAndExecute(new URL(fallbackUrl, absoluteUrl).href);
-                            code = code.replace(match[0], `from '${depBlobUrl}'`);
-                        } else {
-                            throw e;
+                    for (const match of matches) {
+                        const originalStatement = match[0];
+                        const relativePath = match[2];
+                        
+                        let depUrl = relativePath;
+                        if (!relativePath.endsWith('.ts') && !relativePath.endsWith('.tsx')) {
+                            // Tentative intelligente de résolution d'extension
+                            try {
+                                const tryTsx = new URL(relativePath + '.tsx', absoluteUrl).href;
+                                const check = await fetch(tryTsx, { method: 'HEAD' });
+                                if (check.ok) depUrl = relativePath + '.tsx';
+                                else depUrl = relativePath + '.ts';
+                            } catch {
+                                depUrl = relativePath + '.ts';
+                            }
                         }
+
+                        const depBlobUrl = await loadAndExecute(new URL(depUrl, absoluteUrl).href);
+                        replacementMap.set(originalStatement, `from '${depBlobUrl}'`);
                     }
+
+                    // Application des remplacements
+                    for (const [oldStr, newStr] of replacementMap) {
+                        code = code.split(oldStr).join(newStr);
+                    }
+
+                    const transformed = Babel.transform(code, {
+                        presets: [
+                            ['react', { runtime: 'automatic' }],
+                            ['typescript', { isTSX: true, allExtensions: true }]
+                        ],
+                        filename: absoluteUrl
+                    }).code;
+
+                    const blob = new Blob([transformed], { type: 'application/javascript' });
+                    return URL.createObjectURL(blob);
+                } catch (err) {
+                    console.error(`[Loader] Erreur sur ${url}:`, err);
+                    showError(`Erreur de chargement : ${url}\n${err.message}`);
+                    throw err;
                 }
+            })();
 
-                const transformed = Babel.transform(code, {
-                    presets: ['react', ['typescript', { isTSX: true, allExtensions: true }]],
-                    filename: absoluteUrl
-                }).code;
+            moduleCache.set(absoluteUrl, loadPromise);
+            return loadPromise;
+        }
 
-                const blob = new Blob([transformed], { type: 'application/javascript' });
-                const blobUrl = URL.createObjectURL(blob);
-                blobCache.set(absoluteUrl, blobUrl);
-                return blobUrl;
-            } catch (err) {
-                console.error(`[Loader] Erreur critique sur ${url}:`, err);
-                const errDiv = document.getElementById('loader-error');
-                errDiv.style.display = 'block';
-                errDiv.textContent += `❌ Erreur de chargement : ${url}\n${err.message}\n\n`;
-                throw err;
-            }
+        function showError(msg) {
+            const errDiv = document.getElementById('loader-error');
+            errDiv.style.display = 'block';
+            errDiv.textContent += `❌ ${msg}\n\n`;
         }
 
         window.addEventListener('load', async () => {
             try {
-                const entryBlob = await loadAndExecute('./index.tsx');
-                await import(entryBlob);
+                const entryBlobUrl = await loadAndExecute('./index.tsx');
+                await import(entryBlobUrl);
             } catch (e) {
-                console.error("[Runtime] Échec du lancement de l'application.");
+                console.error("[Runtime] Échec fatal.", e);
+                showError(`Échec fatal du lancement : ${e.message}`);
             }
         });
     </script>

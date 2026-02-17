@@ -1,5 +1,4 @@
-
-import { Product, Client, Proforma, Invoice, Payment, DocumentStatus, PaymentMode } from '../types';
+import { Product, Client, Proforma, Invoice, Payment, DocumentStatus, PaymentMode } from '../types.ts';
 
 const STORAGE_KEYS = {
   PRODUCTS: 'pn_products',
