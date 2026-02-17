@@ -6,7 +6,7 @@ import {
   Users, 
   FileText, 
   Receipt, 
-  CreditCard, 
+  Settings as SettingsIcon,
   Menu, 
   X,
   Plus
@@ -18,6 +18,7 @@ import ClientView from './views/ClientView.tsx';
 import ProformaView from './views/ProformaView.tsx';
 import InvoiceView from './views/InvoiceView.tsx';
 import CreateDocumentView from './views/CreateDocumentView.tsx';
+import SettingsView from './views/SettingsView.tsx';
 
 const SidebarLink = ({ to, icon: Icon, children, active }: { to: string, icon: any, children?: React.ReactNode, active: boolean }) => (
   <Link
@@ -67,6 +68,8 @@ const AppContent = () => {
             <div className="h-px bg-gray-100 my-4 mx-4" />
             <SidebarLink to="/products" icon={Package} active={location.pathname.startsWith('/products')}>Catalogue Produits</SidebarLink>
             <SidebarLink to="/clients" icon={Users} active={location.pathname.startsWith('/clients')}>Gestion Clients</SidebarLink>
+            <div className="h-px bg-gray-100 my-4 mx-4" />
+            <SidebarLink to="/settings" icon={SettingsIcon} active={location.pathname.startsWith('/settings')}>Paramètres</SidebarLink>
           </nav>
 
           <div className="p-4 border-t border-gray-100">
@@ -109,6 +112,7 @@ const AppContent = () => {
             <Route path="/invoices/create" element={<CreateDocumentView type="invoice" />} />
             <Route path="/proformas/edit/:id" element={<CreateDocumentView type="proforma" isEditing={true} />} />
             <Route path="/invoices/edit/:id" element={<CreateDocumentView type="invoice" isEditing={true} />} />
+            <Route path="/settings" element={<SettingsView />} />
           </Routes>
         </div>
       </main>
