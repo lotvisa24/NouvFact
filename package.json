@@ -1,25 +1,11 @@
+
 {
-  "name": "pharmacie-nouvelle---gestion-de-facturation",
+  "name": "pharmacie-nouvelle-billing",
+  "version": "1.0.0",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
+  "description": "Système de facturation Pharmacie Nouvelle",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "react-router-dom": "7.1.3",
-    "lucide-react": "0.474.0",
-    "html2pdf.js": "0.10.1",
-    "xlsx": "0.18.5"
-  },
-  "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "build": "echo 'No build step required'",
+    "install": "echo 'No dependencies to install'"
   }
 }

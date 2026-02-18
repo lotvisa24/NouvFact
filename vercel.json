@@ -13,20 +13,13 @@
       ]
     },
     {
-      "source": "/(.*).(ts|tsx|json)",
+      "source": "/(.*)\\.(ts|tsx)",
       "headers": [
         {
           "key": "Content-Type",
-          "value": "application/javascript"
-        },
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
+          "value": "application/javascript; charset=utf-8"
         }
       ]
     }
-  ],
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
