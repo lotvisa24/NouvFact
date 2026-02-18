@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { 
@@ -9,7 +10,9 @@ import {
   Settings as SettingsIcon,
   Menu, 
   X,
-  Plus
+  Plus,
+  Database,
+  ShieldCheck
 } from 'lucide-react';
 
 import DashboardView from './views/DashboardView.tsx';
@@ -19,6 +22,8 @@ import ProformaView from './views/ProformaView.tsx';
 import InvoiceView from './views/InvoiceView.tsx';
 import CreateDocumentView from './views/CreateDocumentView.tsx';
 import SettingsView from './views/SettingsView.tsx';
+import { dataService } from './services/dataService.ts';
+import { CompanyInfo } from './types.ts';
 
 const SidebarLink = ({ to, icon: Icon, children, active }: { to: string, icon: any, children?: React.ReactNode, active: boolean }) => (
   <Link
@@ -36,7 +41,20 @@ const SidebarLink = ({ to, icon: Icon, children, active }: { to: string, icon: a
 
 const AppContent = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(dataService.getCompanyInfo());
+  const [isSynced, setIsSynced] = useState(dataService.getSyncStatus());
   const location = useLocation();
+
+  useEffect(() => {
+    const updateInfo = () => {
+      setCompanyInfo(dataService.getCompanyInfo());
+      setIsSynced(dataService.getSyncStatus());
+    };
+    
+    // Écoute les changements pour garder l'UI à jour
+    const interval = setInterval(updateInfo, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -52,16 +70,32 @@ const AppContent = () => {
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         <div className="flex flex-col h-full">
-          <div className="p-8">
+          <div className="p-8 pb-4">
             <div className="flex items-center gap-3 text-emerald-600">
-              <div className="p-2 bg-emerald-100 rounded-lg">
-                <Receipt size={24} strokeWidth={2.5} />
+              <div className="p-2 bg-emerald-100 rounded-lg shrink-0">
+                {companyInfo.logo ? (
+                  <img src={companyInfo.logo} alt="Logo" className="w-6 h-6 object-contain" />
+                ) : (
+                  <Receipt size={24} strokeWidth={2.5} />
+                )}
               </div>
-              <h1 className="text-xl font-bold tracking-tight text-gray-900">Pharmacie Nouvelle</h1>
+              <h1 className="text-xl font-bold tracking-tight text-gray-900 truncate">{companyInfo.name || "Pharmacie"}</h1>
+            </div>
+            
+            {/* Témoin de Persistence */}
+            <div className="mt-4 flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-100">
+               {isSynced ? (
+                 <ShieldCheck size={12} className="text-emerald-500" />
+               ) : (
+                 <Database size={12} className="text-orange-400 animate-pulse" />
+               )}
+               <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">
+                 Stockage Local : {isSynced ? 'Sécurisé' : 'Synchronisation...'}
+               </span>
             </div>
           </div>
 
-          <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
+          <nav className="flex-1 px-4 space-y-1 overflow-y-auto mt-4">
             <SidebarLink to="/" icon={LayoutDashboard} active={location.pathname === '/'}>Tableau de bord</SidebarLink>
             <SidebarLink to="/proformas" icon={FileText} active={location.pathname.startsWith('/proformas')}>Factures Proforma</SidebarLink>
             <SidebarLink to="/invoices" icon={Receipt} active={location.pathname.startsWith('/invoices')}>Factures Définitives</SidebarLink>
@@ -75,7 +109,9 @@ const AppContent = () => {
           <div className="p-4 border-t border-gray-100">
             <div className="bg-emerald-50 rounded-2xl p-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-emerald-200 flex items-center justify-center text-emerald-700 font-bold">AD</div>
+                <div className="w-10 h-10 rounded-full bg-emerald-200 flex items-center justify-center text-emerald-700 font-bold uppercase">
+                  {(companyInfo.name || "P").charAt(0)}
+                </div>
                 <div>
                   <p className="text-sm font-semibold text-gray-900">Admin</p>
                   <p className="text-xs text-emerald-700">Responsable</p>

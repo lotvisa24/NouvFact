@@ -1,27 +1,36 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Receipt, Search, Trash2, Printer, CreditCard, Download, X, Eye } from 'lucide-react';
 import { dataService } from '../services/dataService.ts';
-import { Invoice, Payment, PaymentMode, DocumentStatus } from '../types.ts';
+import { Invoice, Payment, PaymentMode, DocumentStatus, CompanyInfo } from '../types.ts';
 import { formatCurrency, formatDate, numberToWords } from '../utils/formatters.ts';
 import html2pdf from 'html2pdf.js';
 
-const InvoiceTemplate = ({ inv, showUnit }: { inv: Invoice, showUnit: boolean }) => (
+const InvoiceTemplate = ({ inv, showUnit, company }: { inv: Invoice, showUnit: boolean, company: CompanyInfo }) => (
   <div className="bg-white p-8 text-gray-800 flex flex-col" style={{ width: '210mm', minHeight: '297mm', margin: 'auto' }}>
     <div className="flex justify-between items-start mb-6 border-b-4 border-gray-900 pb-4">
-      <div>
-        <h1 className="text-2xl font-black text-emerald-600 mb-1 italic">PHARMACIE NOUVELLE</h1>
-        <p className="text-gray-800 font-black uppercase tracking-widest text-[9px]">SANTÉ & BIEN-ÊTRE AU QUOTIDIEN</p>
-        <div className="mt-2 text-[9px] text-gray-600 font-medium space-y-0">
-          <p>Abidjan - Plateau, Avenue Jean Paul II</p>
-          <p>Tel: +225 21 00 00 00 | RCCM: CI-ABJ-2023-B-12345</p>
+      <div className="flex gap-4 items-center">
+        {company.logo && (
+          <div className="w-16 h-16 bg-gray-50 rounded-xl overflow-hidden flex items-center justify-center shrink-0">
+            <img src={company.logo} alt="Logo" className="w-full h-full object-contain" />
+          </div>
+        )}
+        <div>
+          <h1 className="text-2xl font-black text-emerald-600 mb-0 italic uppercase">{company.name}</h1>
+          <p className="text-gray-900 font-black uppercase tracking-[0.2em] text-[8px] mt-1">{company.slogan || 'SANTÉ & BIEN-ÊTRE'}</p>
+          <div className="mt-2 text-[8px] text-gray-600 font-bold space-y-0 tracking-tight leading-tight">
+            <p>{company.address}</p>
+            <p>Tel: {company.phone} {company.rccm && `| RCCM: ${company.rccm}`}</p>
+            {company.email && <p>Email: {company.email}</p>}
+          </div>
         </div>
       </div>
       <div className="text-right">
-        <h2 className="text-2xl font-black text-gray-900 mb-0 uppercase italic tracking-tighter">FACTURE</h2>
-        <p className="text-gray-900 font-black text-lg bg-gray-100 px-3 py-1 rounded-lg inline-block">{inv.number}</p>
-        <div className="mt-2 text-[10px] font-bold text-gray-700">
-          <p>Date: {formatDate(inv.date)}</p>
+        <h2 className="text-2xl font-black text-gray-900 mb-0 uppercase italic tracking-tighter leading-none">FACTURE</h2>
+        <p className="text-gray-900 font-black text-lg bg-gray-100 px-3 py-1 rounded-lg inline-block mt-2">{inv.number}</p>
+        <div className="mt-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+          <p>DATE: {formatDate(inv.date)}</p>
         </div>
       </div>
     </div>
@@ -29,17 +38,17 @@ const InvoiceTemplate = ({ inv, showUnit }: { inv: Invoice, showUnit: boolean })
     <div className="grid grid-cols-2 gap-6 mb-6">
       <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100">
         <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1">FACTURÉ À</p>
-        <h3 className="text-xl font-black text-gray-900">{inv.clientName}</h3>
-        <p className="mt-1 text-[10px] text-gray-600 font-medium italic">Abidjan, Côte d'Ivoire</p>
+        <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">{inv.clientName}</h3>
+        <p className="mt-1 text-[10px] text-gray-600 font-medium italic">Client de l'établissement</p>
       </div>
       <div className="p-6 bg-gray-900 rounded-2xl text-white">
-        <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1">STATUT</p>
+        <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1">STATUT DE PAIEMENT</p>
         <h3 className={`text-xl font-black uppercase tracking-widest ${inv.status === DocumentStatus.PAID ? 'text-emerald-400' : 'text-orange-400'}`}>
           {inv.status}
         </h3>
         <div className="mt-2 flex justify-between items-center text-[10px] font-bold">
-          <span>Reste :</span>
-          <span className="text-base">{formatCurrency(inv.balance)}</span>
+          <span className="opacity-60 uppercase">Reste dû :</span>
+          <span className="text-base text-emerald-400">{formatCurrency(inv.balance)}</span>
         </div>
       </div>
     </div>
@@ -48,11 +57,11 @@ const InvoiceTemplate = ({ inv, showUnit }: { inv: Invoice, showUnit: boolean })
       <table className="w-full mb-6">
         <thead>
           <tr className="border-y-2 border-gray-900 text-left text-[9px] uppercase tracking-wider">
-            <th className="py-3 px-2 font-black text-gray-900">Désignation</th>
+            <th className="py-3 px-2 font-black text-gray-900">Désignation des produits / services</th>
             {showUnit && <th className="py-3 px-2 font-black text-gray-900 text-center">Unité</th>}
             <th className="py-3 px-2 font-black text-gray-900 text-center">Qté</th>
             <th className="py-3 px-2 font-black text-gray-900 text-right">Unit.</th>
-            <th className="py-3 px-2 font-black text-gray-900 text-right">Montant</th>
+            <th className="py-3 px-2 font-black text-gray-900 text-right">Montant HT</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -71,31 +80,31 @@ const InvoiceTemplate = ({ inv, showUnit }: { inv: Invoice, showUnit: boolean })
 
     <div className="flex justify-between items-start pt-4 mb-6">
       <div className="w-1/2">
-        <h4 className="font-black text-gray-900 uppercase text-[9px] tracking-widest mb-2">Historique règlements</h4>
+        <h4 className="font-black text-gray-900 uppercase text-[9px] tracking-widest mb-2">Historique des règlements</h4>
         <div className="space-y-1">
           {inv.payments.length > 0 ? inv.payments.slice(0, 3).map(pay => (
             <div key={pay.id} className="flex justify-between text-[10px] font-bold text-gray-500 bg-gray-50 p-2 rounded border border-gray-100">
-              <span>{formatDate(pay.date)}</span>
+              <span className="uppercase">{formatDate(pay.date)} - {pay.mode}</span>
               <span className="text-emerald-600">+{formatCurrency(pay.amount)}</span>
             </div>
           )) : (
-            <p className="text-[10px] text-gray-400 italic">Aucun règlement.</p>
+            <p className="text-[10px] text-gray-400 italic">Aucun versement enregistré pour le moment.</p>
           )}
         </div>
       </div>
-      <div className="w-64 space-y-2">
-        <div className="flex justify-between text-gray-500 font-bold text-[10px]">
-          <span className="uppercase tracking-wider">Sous-total</span>
+      <div className="w-72 space-y-2">
+        <div className="flex justify-between text-gray-400 font-bold text-[10px] uppercase tracking-widest">
+          <span>Total Brut HT</span>
           <span>{formatCurrency(inv.subtotal)}</span>
         </div>
-        <div className="flex justify-between text-gray-500 font-bold text-[10px]">
-          <span className="uppercase tracking-wider">Remise</span>
+        <div className="flex justify-between text-gray-400 font-bold text-[10px] uppercase tracking-widest">
+          <span>Remise Commerciale</span>
           <span>- {formatCurrency(inv.discount)}</span>
         </div>
         <div className="h-0.5 bg-gray-900" />
         <div className="flex justify-between text-gray-900 font-black">
-          <span className="text-[10px] uppercase tracking-widest">Net à payer</span>
-          <span className="text-xl underline underline-offset-4 decoration-emerald-500">{formatCurrency(inv.total)}</span>
+          <span className="text-[10px] self-center uppercase tracking-[0.2em]">Net à payer</span>
+          <span className="text-2xl underline underline-offset-4 decoration-emerald-500 decoration-4">{formatCurrency(inv.total)}</span>
         </div>
       </div>
     </div>
@@ -110,11 +119,11 @@ const InvoiceTemplate = ({ inv, showUnit }: { inv: Invoice, showUnit: boolean })
     </div>
 
     <div className="mt-auto pt-4 border-t-2 border-gray-900 flex justify-between items-end">
-      <div className="text-[9px] text-gray-400 font-bold uppercase tracking-widest italic">
-        <p>Document original certifié - PN System</p>
+      <div className="text-[8px] text-gray-400 font-bold uppercase tracking-[0.2em] italic">
+        <p>Document original certifié par {company.name}</p>
       </div>
-      <div className="text-right border-t border-gray-200 pt-2 w-40">
-        <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-8 text-center">Cachet & Signature</p>
+      <div className="text-center border-t border-gray-200 pt-2 w-48">
+        <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-10">Signature & Cachet</p>
       </div>
     </div>
   </div>
@@ -129,11 +138,13 @@ const InvoiceView = () => {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [showUnit, setShowUnit] = useState(true);
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(dataService.getCompanyInfo());
 
   useEffect(() => {
     setInvoices(dataService.getInvoices());
     const settings = dataService.getSettings();
     setShowUnit(settings.showUnitColumn ?? true);
+    setCompanyInfo(dataService.getCompanyInfo());
   }, []);
 
   const filtered = invoices.filter(i => 
@@ -309,7 +320,6 @@ const InvoiceView = () => {
                       <button onClick={() => handleExportPDF(invoice)} className="p-2 text-emerald-600 hover:text-emerald-800" title="Exporter PDF">
                         <Download size={18} />
                       </button>
-                      {/* Fix: use invoice.id instead of undefined variable id */}
                       <button onClick={() => deleteInvoice(invoice.id)} className="p-2 text-gray-400 hover:text-red-600" title="Supprimer">
                         <Trash2 size={18} />
                       </button>
@@ -361,7 +371,7 @@ const InvoiceView = () => {
             
             <div className="flex-1 overflow-y-auto bg-gray-100/50 p-8 flex justify-center">
               <div className="shadow-lg transform scale-90 origin-top">
-                <InvoiceTemplate inv={selectedInvoice} showUnit={showUnit} />
+                <InvoiceTemplate inv={selectedInvoice} showUnit={showUnit} company={companyInfo} />
               </div>
             </div>
           </div>
@@ -370,7 +380,7 @@ const InvoiceView = () => {
 
       <div style={{ position: 'absolute', left: '-9999px', top: '0', zIndex: -1 }}>
         <div ref={printRef}>
-          {selectedInvoice && <InvoiceTemplate inv={selectedInvoice} showUnit={showUnit} />}
+          {selectedInvoice && <InvoiceTemplate inv={selectedInvoice} showUnit={showUnit} company={companyInfo} />}
         </div>
       </div>
 

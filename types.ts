@@ -82,3 +82,13 @@ export interface AuditLog {
   action: string;
   details: string;
 }
+
+export interface CompanyInfo {
+  name: string;
+  address: string;
+  phone: string;
+  email?: string;
+  rccm?: string;
+  slogan?: string;
+  logo?: string; // base64 string
+}

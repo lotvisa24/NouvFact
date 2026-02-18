@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Download, 
   Upload, 
@@ -9,13 +10,21 @@ import {
   CheckCircle2,
   FileJson,
   AlertTriangle,
-  Info
+  Info,
+  Building2,
+  Image as ImageIcon,
+  Camera,
+  AlertCircle,
+  Hash
 } from 'lucide-react';
 import { dataService } from '../services/dataService.ts';
+import { CompanyInfo } from '../types.ts';
 
 const SettingsView = () => {
-  const [settings, setSettings] = useState<any>({ showUnitColumn: true });
+  const [settings, setSettings] = useState<any>({ showUnitColumn: true, manualInvoiceNumbering: false });
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(dataService.getCompanyInfo());
   const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setSettings(dataService.getSettings());
@@ -30,7 +39,59 @@ const SettingsView = () => {
     const newSettings = { ...settings, showUnitColumn: !settings.showUnitColumn };
     setSettings(newSettings);
     dataService.saveSettings(newSettings);
-    showFeedback("Préférence d'affichage mise à jour localement.");
+    showFeedback("Préférence d'affichage mise à jour.");
+  };
+
+  const handleToggleManualNumbering = () => {
+    const newSettings = { ...settings, manualInvoiceNumbering: !settings.manualInvoiceNumbering };
+    setSettings(newSettings);
+    dataService.saveSettings(newSettings);
+    showFeedback(`Numérotation manuelle ${newSettings.manualInvoiceNumbering ? 'activée' : 'désactivée'}.`);
+  };
+
+  const handleCompanySave = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
+
+    const formData = new FormData(form);
+    const updatedInfo: CompanyInfo = {
+      ...companyInfo,
+      name: formData.get('name') as string,
+      slogan: formData.get('slogan') as string,
+      address: formData.get('address') as string,
+      phone: formData.get('phone') as string,
+      email: formData.get('email') as string,
+      rccm: formData.get('rccm') as string,
+    };
+    
+    setCompanyInfo(updatedInfo);
+    dataService.saveCompanyInfo(updatedInfo);
+    showFeedback("Informations de l'entreprise enregistrées.");
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 1024 * 500) {
+      alert("L'image est trop lourde. Veuillez choisir un logo de moins de 500 Ko.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      const updatedInfo = { ...companyInfo, logo: base64 };
+      setCompanyInfo(updatedInfo);
+      dataService.saveCompanyInfo(updatedInfo);
+      showFeedback("Logo mis à jour avec succès.");
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleExport = () => {
@@ -83,15 +144,11 @@ const SettingsView = () => {
   };
 
   return (
-    <div className="max-w-4xl space-y-8 pb-20">
+    <div className="max-w-5xl mx-auto space-y-8 pb-20">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black text-gray-900">Paramètres</h2>
-          <p className="text-gray-500 font-medium">Configuration et sécurité du système PN.</p>
-        </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-xs font-bold uppercase tracking-wider">
-          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-          Stockage Local Actif
+          <h2 className="text-3xl font-black text-gray-900">Paramètres Système</h2>
+          <p className="text-gray-500 font-medium">Configurez l'identité de votre établissement et gérez vos données.</p>
         </div>
       </div>
 
@@ -104,108 +161,212 @@ const SettingsView = () => {
         </div>
       )}
 
-      {/* Alerte sur la persistance */}
-      <div className="bg-amber-50 border border-amber-100 rounded-3xl p-6 flex gap-4">
-        <div className="shrink-0 p-3 bg-amber-100 text-amber-700 rounded-2xl h-fit">
-          <AlertTriangle size={24} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="p-8 border-b border-gray-50 flex items-center gap-3">
+              <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                <Building2 size={24} />
+              </div>
+              <h3 className="font-bold uppercase text-xs tracking-widest">Informations Établissement</h3>
+            </div>
+            
+            <form onSubmit={handleCompanySave} noValidate className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2 col-span-1 md:col-span-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Nom de la Pharmacie</label>
+                <input 
+                  name="name" 
+                  required 
+                  defaultValue={companyInfo.name} 
+                  className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-emerald-500 font-bold peer invalid:ring-2 invalid:ring-red-500" 
+                  placeholder="Ex: Pharmacie Nouvelle"
+                />
+              </div>
+              <div className="space-y-2 col-span-1 md:col-span-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Slogan / Devise</label>
+                <input 
+                  name="slogan" 
+                  defaultValue={companyInfo.slogan} 
+                  className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-emerald-500 italic text-sm" 
+                  placeholder="Ex: Votre santé, notre priorité"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Téléphone</label>
+                <input 
+                  name="phone" 
+                  required 
+                  type="tel"
+                  pattern="^\+?[0-9\s\-]{8,20}$"
+                  defaultValue={companyInfo.phone} 
+                  className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-emerald-500 text-sm peer invalid:ring-2 invalid:ring-red-500" 
+                  placeholder="Ex: +225 0102030405"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Email Pro</label>
+                <input 
+                  name="email" 
+                  type="email" 
+                  defaultValue={companyInfo.email} 
+                  className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-emerald-500 text-sm peer invalid:ring-2 invalid:ring-red-500" 
+                  placeholder="Ex: contact@pharmacie.com"
+                />
+              </div>
+              <div className="space-y-2 col-span-1 md:col-span-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Adresse Physique</label>
+                <input 
+                  name="address" 
+                  required 
+                  defaultValue={companyInfo.address} 
+                  className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-emerald-500 text-sm peer invalid:ring-2 invalid:ring-red-500" 
+                  placeholder="Ex: Avenue Jean Paul II, Plateau"
+                />
+              </div>
+              <div className="space-y-2 col-span-1 md:col-span-2">
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">Identifiants Légaux (RC / RCCM / IFU)</label>
+                <input 
+                  name="rccm" 
+                  defaultValue={companyInfo.rccm} 
+                  className="w-full px-4 py-3 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-emerald-500 text-sm font-mono" 
+                  placeholder="Ex: CI-ABJ-2023-B-12345"
+                />
+              </div>
+              <div className="col-span-1 md:col-span-2 pt-4">
+                <button type="submit" className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 uppercase tracking-widest text-xs">
+                  Mettre à jour l'identité
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-        <div className="space-y-1">
-          <h4 className="font-black text-amber-900 uppercase text-xs tracking-widest">Note sur la sécurité des données</h4>
-          <p className="text-sm text-amber-800 leading-relaxed font-medium">
-            Vos données sont stockées uniquement dans la mémoire de votre navigateur. 
-            <span className="font-black"> Si vous videz votre cache ou si l'application est réinstallée, vos données seront perdues.</span>
-            Pensez à utiliser le bouton <strong>Exporter</strong> régulièrement pour garder une copie de sécurité sur votre ordinateur.
-          </p>
+
+        <div className="space-y-8">
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-8 flex flex-col items-center text-center">
+             <div className="flex items-center gap-3 text-gray-900 border-b border-gray-50 pb-4 mb-6 w-full">
+              <div className="p-2 bg-gray-100 rounded-xl text-gray-600">
+                <ImageIcon size={20} />
+              </div>
+              <h3 className="font-bold uppercase text-xs tracking-widest">Logo Officiel</h3>
+            </div>
+            
+            <div className="relative group mb-6">
+              <div className="w-32 h-32 rounded-3xl bg-gray-50 border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden">
+                {companyInfo.logo ? (
+                  <img src={companyInfo.logo} alt="Logo" className="w-full h-full object-contain" />
+                ) : (
+                  <ImageIcon size={40} className="text-gray-200" />
+                )}
+              </div>
+              <button 
+                onClick={() => logoInputRef.current?.click()}
+                className="absolute -bottom-2 -right-2 p-3 bg-emerald-600 text-white rounded-2xl shadow-lg hover:bg-emerald-700 transition-transform hover:scale-110"
+              >
+                <Camera size={18} />
+              </button>
+              <input type="file" ref={logoInputRef} className="hidden" accept="image/*" onChange={handleLogoUpload} />
+            </div>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest px-4 leading-relaxed">Format carré recommandé (PNG/JPG). Max 500 Ko.</p>
+          </div>
+
+          <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm space-y-6">
+            <div className="flex items-center gap-3 text-gray-900 border-b border-gray-50 pb-4">
+              <div className="p-2 bg-gray-100 rounded-xl text-gray-600">
+                <Eye size={20} />
+              </div>
+              <h3 className="font-bold uppercase text-xs tracking-widest">Documents & Factures</h3>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
+                <div>
+                  <p className="font-bold text-gray-800 text-sm">Colonnes Unités</p>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">Afficher sur documents</p>
+                </div>
+                <button 
+                  onClick={handleToggleUnit}
+                  className={`w-14 h-8 rounded-full transition-all relative ${settings.showUnitColumn ? 'bg-emerald-500' : 'bg-gray-200'}`}
+                >
+                  <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all ${settings.showUnitColumn ? 'left-7' : 'left-1'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
+                <div className="flex gap-3">
+                  <div className="text-emerald-600 pt-1">
+                    <Hash size={18} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-gray-800 text-sm">Numérotation Manuelle</p>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">Factures Définitives</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={handleToggleManualNumbering}
+                  className={`w-14 h-8 rounded-full transition-all relative ${settings.manualInvoiceNumbering ? 'bg-emerald-500' : 'bg-gray-200'}`}
+                >
+                  <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all ${settings.manualInvoiceNumbering ? 'left-7' : 'left-1'}`} />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Section Affichage */}
         <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm space-y-6">
-          <div className="flex items-center gap-3 text-gray-900 border-b border-gray-50 pb-4">
-            <div className="p-2 bg-gray-100 rounded-xl text-gray-600">
-              <Eye size={20} />
-            </div>
-            <h3 className="font-bold uppercase text-xs tracking-widest">Affichage</h3>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl">
-            <div>
-              <p className="font-bold text-gray-800 text-sm">Afficher les Unités</p>
-              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">Colonnes "Boîte", "Flacon", etc.</p>
-            </div>
-            <button 
-              onClick={handleToggleUnit}
-              className={`w-14 h-8 rounded-full transition-all relative ${settings.showUnitColumn ? 'bg-emerald-500' : 'bg-gray-200'}`}
-            >
-              <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all ${settings.showUnitColumn ? 'left-7' : 'left-1'}`} />
-            </button>
-          </div>
-        </div>
-
-        {/* Section Backup */}
-        <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm space-y-6">
-          <div className="flex items-center gap-3 text-gray-900 border-b border-gray-50 pb-4">
-            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+          <div className="flex items-center gap-3 text-emerald-600 border-b border-gray-50 pb-4">
+            <div className="p-2 bg-emerald-50 rounded-xl">
               <Database size={20} />
             </div>
-            <h3 className="font-bold uppercase text-xs tracking-widest text-emerald-600">Base de données</h3>
+            <h3 className="font-bold uppercase text-xs tracking-widest">Sauvegarde & Restauration</h3>
           </div>
-
           <div className="space-y-4">
             <button 
               onClick={handleExport}
               className="w-full flex items-center justify-between p-4 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition-all group shadow-lg shadow-emerald-100"
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 font-bold text-sm uppercase tracking-widest">
                 <FileJson size={18} />
-                <span className="text-sm font-bold">Exporter mes données</span>
+                <span>Exporter</span>
               </div>
               <Download size={18} />
             </button>
-
             <label className="w-full flex items-center justify-between p-4 bg-white border-2 border-dashed border-gray-200 text-gray-500 hover:border-emerald-400 hover:text-emerald-600 rounded-2xl transition-all group cursor-pointer">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 font-bold text-sm uppercase tracking-widest">
                 <Upload size={18} />
-                <span className="text-sm font-bold">Importer une sauvegarde</span>
+                <span>Importer</span>
               </div>
               <input type="file" accept=".json" onChange={handleImport} className="hidden" />
             </label>
           </div>
         </div>
 
-        {/* Section Danger Zone */}
-        <div className="bg-white rounded-3xl p-8 border border-red-50 shadow-sm space-y-6 md:col-span-2">
+        <div className="bg-white rounded-3xl p-8 border border-red-50 shadow-sm space-y-6">
           <div className="flex items-center gap-3 text-red-600 border-b border-red-50 pb-4">
             <div className="p-2 bg-red-50 rounded-xl">
               <ShieldAlert size={20} />
             </div>
-            <h3 className="font-bold uppercase text-xs tracking-widest">Maintenance critique</h3>
+            <h3 className="font-bold uppercase text-xs tracking-widest">Zone Critique</h3>
           </div>
-
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="flex flex-col gap-4">
             <div className="flex gap-4">
                <div className="p-3 bg-red-50 text-red-500 rounded-2xl h-fit">
                   <Trash2 size={24} />
                </div>
                <div>
-                  <p className="font-bold text-gray-800 text-sm">Réinitialisation complète</p>
-                  <p className="text-xs text-gray-500 max-w-sm">Efface tous les produits, clients et factures. Utile uniquement pour repartir de zéro ou après une erreur grave.</p>
+                  <p className="font-bold text-gray-800 text-sm">Réinitialisation totale</p>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tight mt-1">Supprime tout sauf l'identité pharmacie.</p>
                </div>
             </div>
             <button 
               onClick={handleReset}
-              className="w-full sm:w-auto px-8 py-3 bg-red-50 text-red-600 rounded-2xl font-black hover:bg-red-600 hover:text-white transition-all text-xs border border-red-100 uppercase tracking-widest"
+              className="w-full px-8 py-3 bg-red-50 text-red-600 rounded-2xl font-black hover:bg-red-600 hover:text-white transition-all text-[10px] border border-red-100 uppercase tracking-widest"
             >
-              Vider la base
+              Vider toute la base de données
             </button>
           </div>
         </div>
-      </div>
-
-      <div className="flex items-center justify-center gap-2 text-gray-300 font-bold text-[9px] uppercase tracking-[0.2em] pt-10">
-        <Info size={10} />
-        Données cryptées localement • Version de base 1.2.0
       </div>
     </div>
   );

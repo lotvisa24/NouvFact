@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -5,30 +6,41 @@ import {
   CheckCircle, Download, Eye, X, ExternalLink, Banknote 
 } from 'lucide-react';
 import { dataService } from '../services/dataService.ts';
-import { Proforma, Invoice, DocumentStatus } from '../types.ts';
+import { Proforma, Invoice, DocumentStatus, CompanyInfo } from '../types.ts';
 import { formatCurrency, formatDate, generateNumber, numberToWords } from '../utils/formatters.ts';
 import html2pdf from 'html2pdf.js';
 
-const ProformaTemplate = ({ p, showUnit }: { p: Proforma, showUnit: boolean }) => (
+const ProformaTemplate = ({ p, showUnit, company }: { p: Proforma, showUnit: boolean, company: CompanyInfo }) => (
   <div className="bg-white p-8 text-gray-800 flex flex-col" style={{ width: '210mm', minHeight: '297mm', margin: 'auto' }}>
     <div className="flex justify-between items-start mb-6 border-b-2 border-emerald-600 pb-4">
-      <div>
-        <h1 className="text-2xl font-black text-emerald-600 mb-1">PHARMACIE NOUVELLE</h1>
-        <p className="text-gray-600 font-bold uppercase tracking-widest text-[10px]">Abidjan - Plateau, Avenue Jean Paul II</p>
-        <p className="text-gray-500 text-[9px] italic">Tel: +225 21 00 00 00 | RC: 123456</p>
+      <div className="flex gap-4 items-center">
+        {company.logo && (
+          <div className="w-16 h-16 bg-gray-50 rounded-xl overflow-hidden flex items-center justify-center shrink-0">
+            <img src={company.logo} alt="Logo" className="w-full h-full object-contain" />
+          </div>
+        )}
+        <div>
+          <h1 className="text-2xl font-black text-emerald-600 mb-0 uppercase leading-none">{company.name}</h1>
+          <p className="text-gray-800 font-black uppercase tracking-[0.15em] text-[8px] mt-1">{company.slogan || 'SANTÉ & BIEN-ÊTRE'}</p>
+          <div className="mt-2 text-[8px] text-gray-500 font-bold uppercase tracking-tight leading-tight">
+            <p>{company.address}</p>
+            <p>Tel: {company.phone} {company.rccm && `| RC: ${company.rccm}`}</p>
+            {company.email && <p>Email: {company.email}</p>}
+          </div>
+        </div>
       </div>
       <div className="text-right">
         <h2 className="text-xl font-black text-gray-900 mb-0 uppercase tracking-tight">FACTURE PROFORMA</h2>
-        <p className="text-emerald-600 font-black text-lg">{p.number}</p>
-        <p className="text-gray-500 text-xs font-medium">Date: {formatDate(p.date)}</p>
+        <p className="text-emerald-600 font-black text-lg leading-tight">{p.number}</p>
+        <p className="text-gray-400 text-[10px] font-bold mt-1 uppercase">ÉDITÉ LE: {formatDate(p.date)}</p>
       </div>
     </div>
 
     <div className="mb-6 p-6 bg-gray-50 rounded-2xl border border-gray-100">
-      <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1">DESTINATAIRE</p>
-      <h3 className="text-xl font-black text-gray-900">{p.clientName}</h3>
-      <div className="mt-2 text-xs text-gray-600 font-medium">
-        <p>Abidjan, Côte d'Ivoire</p>
+      <p className="text-[9px] text-gray-400 font-black uppercase tracking-widest mb-1">CLIENT DESTINATAIRE</p>
+      <h3 className="text-xl font-black text-gray-900 uppercase tracking-tight">{p.clientName}</h3>
+      <div className="mt-1 text-xs text-gray-500 font-medium italic">
+        <p>Prestation de service / Vente d'articles médicaux</p>
       </div>
     </div>
 
@@ -58,18 +70,18 @@ const ProformaTemplate = ({ p, showUnit }: { p: Proforma, showUnit: boolean }) =
     </div>
 
     <div className="flex justify-end pt-4 border-t border-gray-100 mb-4">
-      <div className="w-64 space-y-2">
-        <div className="flex justify-between text-gray-500 font-bold text-xs">
-          <span className="uppercase tracking-wider">Sous-total</span>
+      <div className="w-72 space-y-2">
+        <div className="flex justify-between text-gray-400 font-bold text-[10px] uppercase tracking-widest">
+          <span>Sous-total HT</span>
           <span>{formatCurrency(p.subtotal)}</span>
         </div>
-        <div className="flex justify-between text-gray-500 font-bold text-xs">
-          <span className="uppercase tracking-wider">Remise</span>
+        <div className="flex justify-between text-gray-400 font-bold text-[10px] uppercase tracking-widest">
+          <span>Remise</span>
           <span>- {formatCurrency(p.discount)}</span>
         </div>
         <div className="h-0.5 bg-emerald-600" />
         <div className="flex justify-between text-xl font-black text-emerald-600">
-          <span>TOTAL NET</span>
+          <span className="text-[10px] self-center uppercase tracking-[0.2em]">Net à payer</span>
           <span>{formatCurrency(p.total)}</span>
         </div>
       </div>
@@ -85,16 +97,17 @@ const ProformaTemplate = ({ p, showUnit }: { p: Proforma, showUnit: boolean }) =
     </div>
 
     <div className="mt-auto pt-6 border-t border-gray-100 text-center text-gray-400 text-[10px]">
-      <div className="flex justify-between items-center mb-4">
-        <div className="text-left italic">
-          <p>Validité : 30 jours</p>
-          <p>Livraison : 24h après BC</p>
+      <div className="flex justify-between items-center mb-6">
+        <div className="text-left italic space-y-1 font-bold">
+          <p>Validité de l'offre : 30 jours</p>
+          <p>Livraison : 24h à 48h après validation</p>
         </div>
-        <div className="text-right border-t border-gray-200 pt-2 w-40">
-          <p className="font-black text-gray-400 uppercase tracking-tighter mb-8 text-center">Cachet & Signature</p>
+        <div className="text-center border-t border-gray-200 pt-2 w-48">
+          <p className="font-black text-gray-400 uppercase tracking-widest mb-10">La Direction</p>
+          <div className="text-[8px] font-bold text-gray-300">Signature & Cachet autorisés</div>
         </div>
       </div>
-      <p className="italic font-bold text-emerald-600">Pharmacie Nouvelle - Votre santé, notre priorité.</p>
+      <p className="italic font-black text-emerald-600 uppercase tracking-[0.3em]">{company.name} - Excellence au service de votre santé</p>
     </div>
   </div>
 );
@@ -108,11 +121,13 @@ const ProformaView = () => {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [showUnit, setShowUnit] = useState(true);
   const [activeTab, setActiveTab] = useState<'pending' | 'validated'>('pending');
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(dataService.getCompanyInfo());
 
   useEffect(() => {
     setProformas(dataService.getProformas());
     const settings = dataService.getSettings();
     setShowUnit(settings.showUnitColumn ?? true);
+    setCompanyInfo(dataService.getCompanyInfo());
   }, []);
 
   const filtered = proformas.filter(p => {
@@ -427,7 +442,7 @@ const ProformaView = () => {
             
             <div className="flex-1 overflow-y-auto bg-gray-100/50 p-8 flex justify-center">
               <div className="shadow-lg transform scale-90 origin-top">
-                <ProformaTemplate p={selectedProforma} showUnit={showUnit} />
+                <ProformaTemplate p={selectedProforma} showUnit={showUnit} company={companyInfo} />
               </div>
             </div>
           </div>
@@ -436,7 +451,7 @@ const ProformaView = () => {
 
       <div style={{ position: 'absolute', left: '-9999px', top: '0', zIndex: -1 }}>
         <div ref={printRef}>
-          {selectedProforma && <ProformaTemplate p={selectedProforma} showUnit={showUnit} />}
+          {selectedProforma && <ProformaTemplate p={selectedProforma} showUnit={showUnit} company={companyInfo} />}
         </div>
       </div>
     </div>
